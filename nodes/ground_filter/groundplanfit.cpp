@@ -13,7 +13,7 @@
 */
 
 #include <iostream>
-// For disable PCL complile lib, to use PointXYZIR    
+// For disable PCL complile lib, to use PointXYZIR
 #define PCL_NO_PRECOMPILE
 
 #include <ros/ros.h>
@@ -81,7 +81,7 @@ bool point_cmp(VPoint a, VPoint b){
     @param Sensor height for filtering error mirror points.
     @param Num of segment, iteration, LPR
     @param Threshold of seeds distance, and ground plane distance
-    
+
     @subscirbe:/velodyne_points
     @publish:/points_no_ground, /points_ground
 */
@@ -113,11 +113,11 @@ private:
     // Model parameter for ground plane fitting
     // The ground plane model is: ax+by+cz+d=0
     // Here normal:=[a,b,c], d=d
-    // th_dist_d_ = threshold_dist - d 
+    // th_dist_d_ = threshold_dist - d
     float d_;
     MatrixXf normal_;
     float th_dist_d_;
-};    
+};
 
 /*
     @brief Constructor of GPF Node.
@@ -126,19 +126,19 @@ private:
 GroundPlaneFit::GroundPlaneFit():node_handle_("~"){
     // Init ROS related
     ROS_INFO("Inititalizing Ground Plane Fitter...");
-    node_handle_.param<std::string>("point_topic", point_topic_, "/velodyne_points");
+    node_handle_.param<std::string>("point_topic", point_topic_, "/cloud_in");
     ROS_INFO("Input Point Cloud: %s", point_topic_.c_str());
 
-    node_handle_.param("sensor_model", sensor_model_, 32);
+    node_handle_.param("sensor_model", sensor_model_, 8);
     ROS_INFO("Sensor Model: %d", sensor_model_);
 
-    node_handle_.param("sensor_height", sensor_height_, 2.5);
+    node_handle_.param("sensor_height", sensor_height_, 1.9);
     ROS_INFO("Sensor Height: %f", sensor_height_);
 
     node_handle_.param("num_seg", num_seg_, 1);
     ROS_INFO("Num of Segments: %d", num_seg_);
 
-    node_handle_.param("num_iter", num_iter_, 3);
+    node_handle_.param("num_iter", num_iter_, 10);
     ROS_INFO("Num of Iteration: %d", num_iter_);
 
     node_handle_.param("num_lpr", num_lpr_, 20);
@@ -152,7 +152,7 @@ GroundPlaneFit::GroundPlaneFit():node_handle_("~"){
 
     // Listen to velodyne topic
     points_node_sub_ = node_handle_.subscribe(point_topic_, 2, &GroundPlaneFit::velodyne_callback_, this);
-    
+
     // Publish Init
     std::string no_ground_topic, ground_topic;
     node_handle_.param<std::string>("no_ground_point_topic", no_ground_topic, "/points_no_ground");
@@ -170,11 +170,11 @@ GroundPlaneFit::GroundPlaneFit():node_handle_("~"){
     is set here.
     The main step is performed SVD(UAV) on covariance matrix.
     Taking the sigular vector in U matrix according to the smallest
-    sigular value in A, as the `normal_`. `d_` is then calculated 
+    sigular value in A, as the `normal_`. `d_` is then calculated
     according to mean ground points.
 
     @param g_ground_pc:global ground pointcloud ptr.
-    
+
 */
 void GroundPlaneFit::estimate_plane_(void){
     // Create covarian matrix in single pass.
@@ -182,6 +182,7 @@ void GroundPlaneFit::estimate_plane_(void){
     Eigen::Matrix3f cov;
     Eigen::Vector4f pc_mean;
     pcl::computeMeanAndCovarianceMatrix(*g_ground_pc, cov, pc_mean);
+
     // Singular Value Decomposition: SVD
     JacobiSVD<MatrixXf> svd(cov,Eigen::DecompositionOptions::ComputeFullU);
     // use the least singular vector as normal
@@ -193,7 +194,7 @@ void GroundPlaneFit::estimate_plane_(void){
     d_ = -(normal_.transpose()*seeds_mean)(0,0);
     // set distance threhold to `th_dist - d`
     th_dist_d_ = th_dist_ - d_;
- 
+
     // return the equation parameters
 }
 
@@ -203,7 +204,7 @@ void GroundPlaneFit::estimate_plane_(void){
     This function filter ground seeds points accoring to heigt.
     This function will set the `g_ground_pc` to `g_seed_pc`.
     @param p_sorted: sorted pointcloud
-    
+
     @param ::num_lpr_: num of LPR points
     @param ::th_seeds_: threshold distance of seeds
     @param ::
@@ -256,7 +257,7 @@ void GroundPlaneFit::velodyne_callback_(const sensor_msgs::PointCloud2ConstPtr& 
     // 2.Sort on Z-axis value.
     sort(laserCloudIn.points.begin(),laserCloudIn.end(),point_cmp);
     // 3.Error point removal
-    // As there are some error mirror reflection under the ground, 
+    // As there are some error mirror reflection under the ground,
     // here regardless point under 2* sensor_height
     // Sort point according to height, here uses z-axis in default
     pcl::PointCloud<VPoint>::iterator it = laserCloudIn.points.begin();
@@ -271,8 +272,9 @@ void GroundPlaneFit::velodyne_callback_(const sensor_msgs::PointCloud2ConstPtr& 
     // 4. Extract init ground seeds.
     extract_initial_seeds_(laserCloudIn);
     g_ground_pc = g_seeds_pc;
-    
+
     // 5. Ground plane fitter mainloop
+
     for(int i=0;i<num_iter_;i++){
         estimate_plane_();
         g_ground_pc->clear();

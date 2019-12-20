@@ -7,12 +7,22 @@ find_package(catkin REQUIRED COMPONENTS
   pcl_ros
   pcl_conversions
   velodyne_pointcloud
+  dynamic_reconfigure
+)
+
+#add dynamic reconfigure api
+generate_dynamic_reconfigure_options(
+  cfg/seg.cfg
 )
 
 catkin_package(CATKIN_DEPENDS
 	sensor_msgs
 	velodyne_pointcloud
 )
+
+
+
+
 
 ###########
 ## Build ##
@@ -33,7 +43,7 @@ link_directories(${PCL_LIBRARY_DIRS})
 find_package(PCL 1.8 REQUIRED)
 add_definitions(${PCL_DEFINITIONS})
 
-add_executable(groundplanfit 
+add_executable(groundplanfit
 	nodes/ground_filter/groundplanfit.cpp
 )
 
@@ -47,9 +57,12 @@ target_link_libraries(groundplanfit
 )
 
 #Scan Line Run
-add_executable(scanlinerun 
+add_executable(scanlinerun
 	nodes/clustering/scanlinerun.cpp
 )
+
+# make sure configure headers are built before any node using them
+add_dependencies(scanlinerun ${PROJECT_NAME}_gencfg)
 
 target_include_directories(scanlinerun PRIVATE
 	${PCL_INCLUDE_DIRS}
@@ -59,5 +72,3 @@ target_link_libraries(scanlinerun
 	${catkin_LIBRARIES}
 	${PCL_LIBRARIES}
 )
-
-
